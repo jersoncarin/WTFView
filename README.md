@@ -96,3 +96,10 @@ keyPassword=your_key_password
 
 - **[FPV.WTF](https://github.com/fpv-wtf/)** — Goggles rooting tools, protocols, and original concepts.
 - **[DigiView-Android](https://github.com/fpvout/DigiView-Android)** — Reference Android implementation.
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
