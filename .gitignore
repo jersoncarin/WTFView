@@ -1,0 +1,57 @@
+# Built application & bundle artifacts
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+
+# Package files
+*.jar
+*.war
+*.ear
+!gradle/wrapper/gradle-wrapper.jar
+
+# Gradle & Build output
+.gradle/
+build/
+/*/build/
+out/
+gen/
+bin/
+
+# Local SDK & environment configuration
+local.properties
+
+# C/C++ NDK build artifacts
+.cxx/
+*/.cxx/
+.externalNativeBuild/
+*.ninja
+*.ninja_deps
+*.ninja_log
+
+# Android Studio & IntelliJ IDEA
+*.iml
+.idea/
+.navigation/
+captures/
+.vscode/
+
+# Keystores & Signing credentials
+*.jks
+*.keystore
+keystore.properties
+google-services.json
+
+# Log & profiling files
+*.log
+*.hprof
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

@@ -1,0 +1,1 @@
+-keep class com.jersnet.wtfview.osd.Lz4Native { *; }
