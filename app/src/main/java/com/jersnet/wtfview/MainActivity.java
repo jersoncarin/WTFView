@@ -101,6 +101,8 @@ public class MainActivity extends AppCompatActivity {
     private View auHudContainer;
     private TextView tvTemp;
     private TextView tvVoltage;
+    private TextView tvGlsTemp;
+    private TextView tvGlsVoltage;
 
     private View debugLogContainer;
     private TextView tvDebugLogs;
@@ -111,6 +113,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean logUpdatePending = false;
 
     private float lastVoltage = 0f;
+    private int lastGlsTemp = 0;
+    private float lastGlsVoltage = 0f;
     private int lastTemp = 0;
     private String lastFc = "BTFL";
 
@@ -209,6 +213,8 @@ public class MainActivity extends AppCompatActivity {
         auHudContainer = findViewById(R.id.auHudContainer);
         tvTemp = findViewById(R.id.tvTemp);
         tvVoltage = findViewById(R.id.tvVoltage);
+        tvGlsTemp = findViewById(R.id.tvGlsTemp);
+        tvGlsVoltage = findViewById(R.id.tvGlsVoltage);
 
         debugLogContainer = findViewById(R.id.debugLogContainer);
         tvDebugLogs = findViewById(R.id.tvDebugLogs);
@@ -245,7 +251,17 @@ public class MainActivity extends AppCompatActivity {
         fontManager = new FontManager(this);
         osdView.setFontManager(fontManager);
         osdManager = new OsdManager(this, osdView, fontManager);
-        osdManager.setTelemetryListener(this::onTelemetryReceived);
+        osdManager.setTelemetryListener(new OsdManager.TelemetryListener() {
+            @Override
+            public void onTelemetryUpdate(int temp, float voltage, String fcVariant) {
+                onTelemetryReceived(temp, voltage, fcVariant);
+            }
+
+            @Override
+            public void onGogglesTelemetryUpdate(int temp, float voltage) {
+                onGogglesTelemetryReceived(temp, voltage);
+            }
+        });
 
         usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
         usbMaskConnection = new UsbMaskConnection();
@@ -318,6 +334,12 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(this::renderTelemetryHud);
     }
 
+    private void onGogglesTelemetryReceived(int temp, float voltage) {
+        this.lastGlsTemp = temp;
+        this.lastGlsVoltage = voltage;
+        runOnUiThread(this::renderTelemetryHud);
+    }
+
     private void renderTelemetryHud() {
         if (!prefs.getBoolean(PREF_AU_HUD_ENABLED, true)) {
             auHudContainer.setVisibility(View.GONE);
@@ -327,18 +349,48 @@ public class MainActivity extends AppCompatActivity {
             auHudContainer.setVisibility(View.VISIBLE);
         }
 
-        if (lastTemp > 0) {
-            tvTemp.setText(String.format(Locale.US, "%d°C", lastTemp));
-            if (lastTemp >= 80) {
-                tvTemp.setTextColor(Color.parseColor("#EF4444"));
+        if (tvTemp != null) {
+            if (lastTemp > 0) {
+                tvTemp.setText(String.format(Locale.US, "AU: %d°C", lastTemp));
+                if (lastTemp >= 80) {
+                    tvTemp.setTextColor(Color.parseColor("#EF4444"));
+                } else {
+                    tvTemp.setTextColor(Color.WHITE);
+                }
             } else {
+                tvTemp.setText("AU: --°C");
                 tvTemp.setTextColor(Color.WHITE);
             }
         }
 
-        if (lastVoltage > 0) {
-            tvVoltage.setText(String.format(Locale.US, "%.1fV", lastVoltage));
-            tvVoltage.setTextColor(Color.WHITE);
+        if (tvVoltage != null) {
+            if (lastVoltage > 0) {
+                tvVoltage.setText(String.format(Locale.US, "%.1fV", lastVoltage));
+            } else {
+                tvVoltage.setText("--.-V");
+            }
+        }
+
+        if (tvGlsTemp != null) {
+            if (lastGlsTemp > 0) {
+                tvGlsTemp.setText(String.format(Locale.US, "GLS: %d°C", lastGlsTemp));
+                if (lastGlsTemp >= 80) {
+                    tvGlsTemp.setTextColor(Color.parseColor("#EF4444"));
+                } else {
+                    tvGlsTemp.setTextColor(Color.WHITE);
+                }
+            } else {
+                tvGlsTemp.setText("GLS: --°C");
+                tvGlsTemp.setTextColor(Color.WHITE);
+            }
+        }
+
+        if (tvGlsVoltage != null) {
+            if (lastGlsVoltage > 0) {
+                tvGlsVoltage.setText(String.format(Locale.US, "%.1fV", lastGlsVoltage));
+            } else {
+                tvGlsVoltage.setText("--.-V");
+            }
         }
     }
 
@@ -662,9 +714,18 @@ public class MainActivity extends AppCompatActivity {
         isConnected = false;
         isConnecting.set(false);
 
+        lastTemp = 0;
+        lastVoltage = 0f;
+        lastGlsTemp = 0;
+        lastGlsVoltage = 0f;
+
         runOnUiThread(() -> {
             auHudContainer.setVisibility(View.GONE);
             osdView.clear();
+            if (tvTemp != null) tvTemp.setText("AU: --°C");
+            if (tvVoltage != null) tvVoltage.setText("--.-V");
+            if (tvGlsTemp != null) tvGlsTemp.setText("GLS: --°C");
+            if (tvGlsVoltage != null) tvGlsVoltage.setText("--.-V");
         });
 
         if (adbClient != null) {

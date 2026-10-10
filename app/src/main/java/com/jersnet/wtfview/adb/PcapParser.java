@@ -8,6 +8,7 @@ public class PcapParser {
     public interface PacketListener {
         void onTelemetryPacket(int temp, float voltage, String fcVariant);
         void onCompressedOsdPacket(byte[] payload, int offset, int length);
+        void onGogglesTelemetryPacket(int temp, float voltage);
     }
 
     private static final int MODE_DETECT = 0;
@@ -204,9 +205,19 @@ public class PcapParser {
                 }
             }
         } else if (port == 7656) {
-
             if (payloadLen > 4 && listener != null) {
                 listener.onCompressedOsdPacket(data, payloadOffset, payloadLen);
+            }
+        } else if (port == 7650) {
+            if (payloadLen >= 4 && listener != null) {
+                int mv = readInt32LE(data, payloadOffset);
+                int temp = 0;
+                if (payloadLen >= 8) {
+                    temp = readInt32LE(data, payloadOffset + 4);
+                }
+                if (mv > 0 || temp > 0) {
+                    listener.onGogglesTelemetryPacket(temp, mv / 1000.0f);
+                }
             }
         }
     }

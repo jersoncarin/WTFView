@@ -123,12 +123,20 @@ public class OsdManager implements PcapParser.PacketListener {
 
     public interface TelemetryListener {
         void onTelemetryUpdate(int temp, float voltage, String fcVariant);
+        void onGogglesTelemetryUpdate(int temp, float voltage);
     }
 
     private TelemetryListener telemetryListener;
 
     public void setTelemetryListener(TelemetryListener listener) {
         this.telemetryListener = listener;
+    }
+
+    @Override
+    public void onGogglesTelemetryPacket(int temp, float voltage) {
+        if (telemetryListener != null) {
+            telemetryListener.onGogglesTelemetryUpdate(temp, voltage);
+        }
     }
 
     @Override

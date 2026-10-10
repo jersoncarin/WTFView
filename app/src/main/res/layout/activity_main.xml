@@ -37,23 +37,53 @@
         android:paddingTop="5dp"
         android:paddingBottom="5dp"
         android:layout_marginStart="14dp"
-        android:layout_marginTop="14dp"
+        android:layout_marginBottom="14dp"
         android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintBottom_toBottomOf="parent">
 
         <TextView
             android:id="@+id/tvTemp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="--°C"
+            android:text="AU: --°C"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginEnd="6dp" />
+
+        <TextView
+            android:id="@+id/tvVoltage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="--.-V"
             android:textColor="#FFFFFF"
             android:textSize="12sp"
             android:fontFamily="sans-serif-medium"
             android:layout_marginEnd="10dp" />
 
         <TextView
-            android:id="@+id/tvVoltage"
+            android:id="@+id/tvHudDivider"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="|"
+            android:textColor="#55FFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginEnd="10dp" />
+
+        <TextView
+            android:id="@+id/tvGlsTemp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="GLS: --°C"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginEnd="6dp" />
+
+        <TextView
+            android:id="@+id/tvGlsVoltage"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="--.-V"

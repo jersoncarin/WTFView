@@ -13,6 +13,9 @@
 #include <linux/if_ether.h>
 #include <net/ethernet.h>
 #include <sys/prctl.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <time.h>
 
 #define MAGIC_0 'W'
 #define MAGIC_1 'T'
@@ -24,6 +27,63 @@ static volatile int s_running = 1;
 static void sig_handler(int sig) {
     (void)sig;
     s_running = 0;
+}
+
+static uint32_t read_gls_battery_mv(void) {
+    int fd = open("/sys/devices/platform/soc/f0a00000.apb/f0a71000.omc/voltage5", O_RDONLY);
+    if (fd < 0) return 0;
+    char buf[32];
+    ssize_t n = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    if (n <= 0) return 0;
+    buf[n] = '\0';
+    int adc = atoi(buf);
+    if (adc <= 0) return 0;
+    float v = (adc * 0.0222f) - 0.6502f;
+    if (v < 0.0f) return 0;
+    return (uint32_t)(v * 1000.0f + 0.5f);
+}
+
+static int32_t read_gls_temp(void) {
+    int fd = open("/sys/devices/platform/soc/f0a00000.apb/f0a71000.omc/temp1", O_RDONLY);
+    if (fd < 0) return 0;
+    char buf[16];
+    ssize_t n = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    if (n <= 0) return 0;
+    buf[n] = '\0';
+    return atoi(buf);
+}
+
+static void send_telemetry_packet(uint32_t mv, int32_t temp) {
+    uint8_t pkt[16];
+    pkt[0] = MAGIC_0;
+    pkt[1] = MAGIC_1;
+    pkt[2] = MAGIC_2;
+    pkt[3] = MAGIC_3;
+    pkt[4] = (uint8_t)(7650 & 0xFF);
+    pkt[5] = (uint8_t)((7650 >> 8) & 0xFF);
+    pkt[6] = 8;
+    pkt[7] = 0;
+    pkt[8] = (uint8_t)(mv & 0xFF);
+    pkt[9] = (uint8_t)((mv >> 8) & 0xFF);
+    pkt[10] = (uint8_t)((mv >> 16) & 0xFF);
+    pkt[11] = (uint8_t)((mv >> 24) & 0xFF);
+    pkt[12] = (uint8_t)(temp & 0xFF);
+    pkt[13] = (uint8_t)((temp >> 8) & 0xFF);
+    pkt[14] = (uint8_t)((temp >> 16) & 0xFF);
+    pkt[15] = (uint8_t)((temp >> 24) & 0xFF);
+
+    ssize_t written = 0;
+    while (written < (ssize_t)sizeof(pkt) && s_running) {
+        ssize_t w = write(STDOUT_FILENO, pkt + written, sizeof(pkt) - written);
+        if (w <= 0) {
+            if (errno == EINTR) continue;
+            s_running = 0;
+            break;
+        }
+        written += w;
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -42,7 +102,6 @@ int main(int argc, char *argv[]) {
     if (sock < 0) {
         sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_IP));
         if (sock < 0) {
-
             sock = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);
             if (sock < 0) {
                 return 1;
@@ -61,7 +120,30 @@ int main(int argc, char *argv[]) {
     out_buf[2] = MAGIC_2;
     out_buf[3] = MAGIC_3;
 
+    time_t last_telemetry_time = 0;
+
     while (s_running) {
+        time_t now = time(NULL);
+        if (now != last_telemetry_time) {
+            last_telemetry_time = now;
+            uint32_t mv = read_gls_battery_mv();
+            int32_t temp = read_gls_temp();
+            if (mv > 0 || temp > 0) {
+                send_telemetry_packet(mv, temp);
+            }
+        }
+
+        struct pollfd pfd;
+        pfd.fd = sock;
+        pfd.events = POLLIN;
+        pfd.revents = 0;
+
+        int pr = poll(&pfd, 1, 500);
+        if (pr <= 0) {
+            if (pr < 0 && errno == EINTR) continue;
+            continue;
+        }
+
         struct sockaddr_ll sll;
         socklen_t sll_len = sizeof(sll);
         ssize_t n = recvfrom(sock, rx_buf, sizeof(rx_buf), 0, (struct sockaddr *)&sll, &sll_len);

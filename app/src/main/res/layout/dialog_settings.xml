@@ -75,7 +75,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Air Unit Info"
+                android:text="Goggles / AU HUD"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp" />
 
