@@ -62,38 +62,6 @@
             android:fontFamily="sans-serif-medium" />
     </LinearLayout>
 
-    <LinearLayout
-        android:id="@+id/btnRecord"
-        android:layout_width="wrap_content"
-        android:layout_height="40dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@drawable/bg_hud_pill"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:layout_marginTop="14dp"
-        android:layout_marginEnd="10dp"
-        android:clickable="true"
-        android:focusable="true"
-        app:layout_constraintEnd_toStartOf="@id/btnSettings"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <ImageView
-            android:id="@+id/ivRecDot"
-            android:layout_width="10dp"
-            android:layout_height="10dp"
-            android:src="@drawable/dot_indicator_red"
-            android:layout_marginEnd="6dp" />
-
-        <TextView
-            android:id="@+id/tvRecStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="REC"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-    </LinearLayout>
 
     <ImageButton
         android:id="@+id/btnSettings"

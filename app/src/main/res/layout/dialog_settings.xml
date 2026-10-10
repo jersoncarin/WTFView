@@ -130,31 +130,67 @@
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#15FFFFFF"
+            android:padding="12dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="12dp">
 
-            <TextView
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Record Mic in DVR"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
-            <androidx.appcompat.widget.SwitchCompat
-                android:id="@+id/switchRecordMic"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="false" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Last Known Flight"
+                        android:textColor="#FFFFFF"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvLastGpsCoords"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="No GPS data recorded"
+                        android:textColor="#38BDF8"
+                        android:textSize="13sp"
+                        android:fontFamily="monospace"
+                        android:layout_marginTop="3dp" />
+
+                    <TextView
+                        android:id="@+id/tvLastGpsTime"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Last seen: --"
+                        android:textColor="#94A3B8"
+                        android:textSize="11sp"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btnOpenInMaps"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Open in Maps"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="#FFFFFF"
+                    android:background="@drawable/bg_button_sync"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp" />
+            </LinearLayout>
         </LinearLayout>
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#22FFFFFF"
-            android:layout_marginTop="6dp"
-            android:layout_marginBottom="12dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -252,7 +288,7 @@
                     android:id="@+id/tvAppVersion"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Version 1.0.0"
+                    android:text="Version 1.0.2"
                     android:textColor="#94A3B8"
                     android:textSize="12sp"
                     android:layout_marginTop="2dp" />

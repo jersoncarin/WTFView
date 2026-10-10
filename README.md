@@ -9,7 +9,7 @@ Low-latency Android digital FPV video viewer and OSD renderer for DJI FPV Goggle
 WTFView allows you to connect an Android device (phone, tablet, or display) to DJI FPV Goggles via USB-C to:
 - Stream live 720p 60 FPS digital FPV video with low glass-to-glass latency.
 - Render full HD Betaflight / INAV / ArduPilot OSD overlays on top of the live feed.
-- Record high-quality DVR (video + internal/mic audio) directly to your Android device storage.
+- Last Known Flight coordinate persistence and one-tap Google Maps drone recovery.
 
 ---
 
@@ -36,7 +36,7 @@ WTFView allows you to connect an Android device (phone, tablet, or display) to D
   Packets are multiplexed with a 4-byte header (`WTFV`) and streamed over ADB stdout via USB to the Android app.
 
 ### 2. Video Pipeline
-- **NAL Demuxing**: `H264Extractor` scans incoming byte buffers for H.264 NAL units (SPS `0x67`, PPS `0x68`, IDR `0x65`, non-IDR `0x41`, SEI `0x06`).
+- **NAL Demuxing**: Scans incoming byte buffers for H.264 NAL units (SPS `0x67`, PPS `0x68`, IDR `0x65`, non-IDR `0x41`, SEI `0x06`).
 - **Hardware Decoding**: Passes NAL frames directly to Android's hardware `MediaCodec` decoder through an ExoPlayer `SurfaceView`.
 - **Zero-Buffering**: Internal buffering and render pipelines are tuned to zero cached frames to ensure minimum display latency.
 
@@ -45,9 +45,11 @@ WTFView allows you to connect an Android device (phone, tablet, or display) to D
 - **Font & Glyph Rendering**: `FontManager` matches the flight controller font texture (Betaflight, INAV, ArduPilot, etc.) and parses the 53x20 or 30x16 character grid.
 - **HUD Overlay**: `OsdView` renders the transparent character canvas over the video surface at 60 FPS without blocking video decoding threads.
 
-### 4. DVR Recording
-- Uses Android `MediaProjection` API to capture the composited live video and OSD canvas.
-- Encodes output to MP4 with synchronized internal audio and microphone support.
+### 4. Last Known Flight & Drone Recovery
+- **Automatic GPS Parsing**: Parses real-time GPS coordinates directly from the Betaflight / INAV OSD text stream.
+- **Persistent Coordinates**: Automatically saves and updates the last valid GPS coordinates and timestamp in local settings across app crashes or restarts.
+- **One-Tap Google Maps Recovery**: Open the drone's coordinates directly in Google Maps or any installed navigation app labeled **Last Known Flight** to quickly find a downed quad.
+- **Zero Bloat**: Lightweight and battery-efficient with zero third-party map rendering dependencies.
 
 ---
 

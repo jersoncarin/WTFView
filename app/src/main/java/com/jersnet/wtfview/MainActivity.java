@@ -24,34 +24,30 @@ import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
-import android.Manifest;
-import android.content.pm.PackageManager;
-import android.media.projection.MediaProjectionManager;
 import android.util.DisplayMetrics;
 import android.view.SurfaceHolder;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.jersnet.wtfview.adb.AdbUsbClient;
-import com.jersnet.wtfview.dvr.DvrRecorder;
-import com.jersnet.wtfview.dvr.DvrService;
+import com.jersnet.wtfview.map.GpsCoordinate;
+import com.jersnet.wtfview.map.GpsParser;
 import com.jersnet.wtfview.osd.FontManager;
+import com.jersnet.wtfview.osd.Lz4Native;
 import com.jersnet.wtfview.osd.OsdManager;
 import com.jersnet.wtfview.osd.OsdView;
 import com.jersnet.wtfview.usb.UsbMaskConnection;
 import com.jersnet.wtfview.video.VideoReaderExoplayer;
 
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -66,25 +62,18 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREF_AU_HUD_ENABLED = "pref_au_hud_enabled";
     private static final String PREF_STRETCH_ENABLED = "pref_stretch_enabled";
     private static final String PREF_DEBUG_LOG_ENABLED = "pref_debug_log_enabled";
-    private static final String PREF_RECORD_MIC = "pref_record_mic";
+    private static final String PREF_LAST_GPS_LAT = "pref_last_gps_lat";
+    private static final String PREF_LAST_GPS_LON = "pref_last_gps_lon";
+    private static final String PREF_LAST_GPS_TIME = "pref_last_gps_time";
 
-    private View btnRecord;
-    private ImageView ivRecDot;
-    private TextView tvRecStatus;
-    private ActivityResultLauncher<Intent> mediaProjectionLauncher;
-    private final Handler dvrTimerHandler = new Handler(Looper.getMainLooper());
-    private final Runnable dvrTimerRunnable = new Runnable() {
+    private final Handler gpsPollHandler = new Handler(Looper.getMainLooper());
+    private final Runnable gpsPollRunnable = new Runnable() {
         @Override
         public void run() {
-            if (DvrService.isRecording()) {
-                long durationSec = DvrService.getRecordingDurationMs() / 1000;
-                long mins = durationSec / 60;
-                long secs = durationSec % 60;
-                if (tvRecStatus != null) {
-                    tvRecStatus.setText(String.format(Locale.US, "%02d:%02d", mins, secs));
-                }
-                dvrTimerHandler.postDelayed(this, 1000);
+            if (isConnected && osdView != null) {
+                checkOsdForGps();
             }
+            gpsPollHandler.postDelayed(this, 1000);
         }
     };
 
@@ -242,51 +231,6 @@ public class MainActivity extends AppCompatActivity {
 
         FileLogger.setLogListener(this::onLogReceived);
 
-        btnRecord = findViewById(R.id.btnRecord);
-        ivRecDot = findViewById(R.id.ivRecDot);
-        tvRecStatus = findViewById(R.id.tvRecStatus);
-
-        mediaProjectionLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        startDvrService(result.getResultCode(), result.getData());
-                    } else {
-                        Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show();
-                    }
-                }
-        );
-
-        DvrService.setGlobalListener(new DvrRecorder.DvrListener() {
-            @Override
-            public void onRecordingStarted(String filePath) {
-                runOnUiThread(() -> {
-                    updateDvrUi(true);
-                    Toast.makeText(MainActivity.this, "DVR Recording Started", Toast.LENGTH_SHORT).show();
-                });
-            }
-
-            @Override
-            public void onRecordingStopped(String filePath, long durationMs) {
-                runOnUiThread(() -> {
-                    updateDvrUi(false);
-                    Toast.makeText(MainActivity.this, "DVR Saved to Movies/WTFView (" + (durationMs / 1000) + "s)", Toast.LENGTH_LONG).show();
-                });
-            }
-
-            @Override
-            public void onError(String message) {
-                runOnUiThread(() -> {
-                    updateDvrUi(false);
-                    Toast.makeText(MainActivity.this, "DVR Error: " + message, Toast.LENGTH_SHORT).show();
-                });
-            }
-        });
-
-        if (btnRecord != null) {
-            btnRecord.setOnClickListener(v -> toggleDvrRecording());
-        }
-
         btnSettings = findViewById(R.id.btnSettings);
         btnSettings.setOnClickListener(v -> showSettingsDialog());
 
@@ -294,10 +238,6 @@ public class MainActivity extends AppCompatActivity {
             btnSettings.animate().alpha(1.0f).setDuration(200).start();
             btnSettings.removeCallbacks(dimSettingsRunnable);
             btnSettings.postDelayed(dimSettingsRunnable, 3500);
-
-            if (btnRecord != null) {
-                btnRecord.animate().alpha(1.0f).setDuration(200).start();
-            }
         });
 
         applyAspectRatio(prefs.getBoolean(PREF_STRETCH_ENABLED, false));
@@ -456,17 +396,34 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        SwitchCompat switchRecordMic = dialogView.findViewById(R.id.switchRecordMic);
-        boolean recordMicEnabled = prefs.getBoolean(PREF_RECORD_MIC, false);
-        if (switchRecordMic != null) {
-            switchRecordMic.setChecked(recordMicEnabled);
-            switchRecordMic.setOnCheckedChangeListener((btn, isChecked) -> {
-                prefs.edit().putBoolean(PREF_RECORD_MIC, isChecked).apply();
-                if (isChecked && ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, 101);
+        TextView tvLastGpsCoords = dialogView.findViewById(R.id.tvLastGpsCoords);
+        TextView tvLastGpsTime = dialogView.findViewById(R.id.tvLastGpsTime);
+        Button btnOpenInMaps = dialogView.findViewById(R.id.btnOpenInMaps);
+
+        String lastLat = prefs.getString(PREF_LAST_GPS_LAT, null);
+        String lastLon = prefs.getString(PREF_LAST_GPS_LON, null);
+        long lastTime = prefs.getLong(PREF_LAST_GPS_TIME, 0);
+
+        if (lastLat != null && lastLon != null && tvLastGpsCoords != null) {
+            tvLastGpsCoords.setText(lastLat + ", " + lastLon);
+            if (tvLastGpsTime != null) {
+                if (lastTime > 0) {
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("MMM dd, yyyy HH:mm:ss", Locale.getDefault());
+                    tvLastGpsTime.setText("Recorded: " + sdf.format(new java.util.Date(lastTime)));
+                } else {
+                    tvLastGpsTime.setText("Recorded: Available");
                 }
-            });
+            }
+            if (btnOpenInMaps != null) {
+                btnOpenInMaps.setEnabled(true);
+                btnOpenInMaps.setOnClickListener(v -> openInMaps(lastLat, lastLon));
+            }
+        } else {
+            if (btnOpenInMaps != null) {
+                btnOpenInMaps.setEnabled(false);
+            }
         }
+
 
         Button btnSyncFont = dialogView.findViewById(R.id.btnSyncFont);
         TextView tvFontStatus = dialogView.findViewById(R.id.tvFontStatus);
@@ -705,12 +662,6 @@ public class MainActivity extends AppCompatActivity {
         isConnected = false;
         isConnecting.set(false);
 
-        if (DvrService.isRecording()) {
-            FileLogger.log(TAG, "Goggles disconnected during recording: auto-finalizing DVR cleanly");
-            DvrService.stop(this);
-            runOnUiThread(() -> Toast.makeText(this, "DVR Auto-Saved (USB Disconnected)", Toast.LENGTH_SHORT).show());
-        }
-
         runOnUiThread(() -> {
             auHudContainer.setVisibility(View.GONE);
             osdView.clear();
@@ -742,99 +693,33 @@ public class MainActivity extends AppCompatActivity {
         currentDevice = null;
     }
 
-    private void toggleDvrRecording() {
-        if (DvrService.isRecording()) {
-            DvrService.stop(this);
-        } else {
-            boolean recordMic = prefs.getBoolean(PREF_RECORD_MIC, false);
-            if (recordMic && ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, 101);
-                return;
+    private void checkOsdForGps() {
+        try {
+            String osdText = Lz4Native.getOsdText();
+            if (osdText != null && !osdText.isEmpty()) {
+                GpsCoordinate coord = GpsParser.parseFromOsdText(osdText);
+                if (coord != null && coord.isValid()) {
+                    prefs.edit()
+                            .putString(PREF_LAST_GPS_LAT, String.format(Locale.US, "%.7f", coord.latitude))
+                            .putString(PREF_LAST_GPS_LON, String.format(Locale.US, "%.7f", coord.longitude))
+                            .putLong(PREF_LAST_GPS_TIME, System.currentTimeMillis())
+                            .apply();
+                }
             }
-            startScreenCapture();
-        }
+        } catch (Exception ignored) {}
     }
 
-    private void startScreenCapture() {
-        MediaProjectionManager mpm = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        if (mpm != null) {
-            mediaProjectionLauncher.launch(mpm.createScreenCaptureIntent());
-        }
-    }
-
-    private void startDvrService(int resultCode, Intent data) {
-        DisplayMetrics metrics = new DisplayMetrics();
-        getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
-        int width = metrics.widthPixels;
-        int height = metrics.heightPixels;
-        int dpi = metrics.densityDpi;
-        boolean enableMic = prefs.getBoolean(PREF_RECORD_MIC, false);
-
-        Intent serviceIntent = new Intent(this, DvrService.class);
-        serviceIntent.setAction(DvrService.ACTION_START);
-        serviceIntent.putExtra(DvrService.EXTRA_RESULT_CODE, resultCode);
-        serviceIntent.putExtra(DvrService.EXTRA_RESULT_DATA, data);
-        serviceIntent.putExtra(DvrService.EXTRA_WIDTH, width);
-        serviceIntent.putExtra(DvrService.EXTRA_HEIGHT, height);
-        serviceIntent.putExtra(DvrService.EXTRA_DPI, dpi);
-        serviceIntent.putExtra(DvrService.EXTRA_ENABLE_MIC, enableMic);
-
-        ContextCompat.startForegroundService(this, serviceIntent);
-    }
-
-    private void updateDvrUi(boolean isRecording) {
-        if (isRecording) {
-
-            auHudContainer.setVisibility(View.GONE);
-            btnSettings.setVisibility(View.GONE);
-            if (debugLogContainer != null) {
-                debugLogContainer.setVisibility(View.GONE);
-            }
-            if (tvRecStatus != null) {
-                tvRecStatus.setText("00:00");
-                tvRecStatus.setTextColor(Color.parseColor("#EF4444"));
-            }
-            dvrTimerHandler.post(dvrTimerRunnable);
-            if (ivRecDot != null) {
-                ivRecDot.animate().alpha(0.2f).setDuration(500).withEndAction(() ->
-                    ivRecDot.animate().alpha(1.0f).setDuration(500).start()
-                ).start();
-            }
-            if (btnRecord != null) {
-                btnRecord.animate().alpha(0.35f).setDuration(1200).setStartDelay(3000).start();
-            }
-        } else {
-            dvrTimerHandler.removeCallbacks(dvrTimerRunnable);
-            if (tvRecStatus != null) {
-                tvRecStatus.setText("REC");
-                tvRecStatus.setTextColor(Color.WHITE);
-            }
-            if (ivRecDot != null) {
-                ivRecDot.animate().cancel();
-                ivRecDot.setAlpha(1.0f);
-            }
-            if (btnRecord != null) {
-                btnRecord.animate().cancel();
-                btnRecord.setAlpha(1.0f);
-            }
-
-            if (prefs.getBoolean(PREF_AU_HUD_ENABLED, true) && isConnected) {
-                auHudContainer.setVisibility(View.VISIBLE);
-                renderTelemetryHud();
-            }
-            btnSettings.setVisibility(View.VISIBLE);
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 101) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startScreenCapture();
-            } else {
-                Toast.makeText(this, "Audio permission denied. Recording video only.", Toast.LENGTH_SHORT).show();
-                startScreenCapture();
+    private void openInMaps(String lat, String lon) {
+        try {
+            Uri gmmIntentUri = Uri.parse("geo:" + lat + "," + lon + "?q=" + lat + "," + lon + "(Last Known Flight)");
+            Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
+            startActivity(mapIntent);
+        } catch (Exception e) {
+            try {
+                Uri webUri = Uri.parse("https://www.google.com/maps/search/?api=1&query=" + lat + "," + lon);
+                startActivity(new Intent(Intent.ACTION_VIEW, webUri));
+            } catch (Exception ignored) {
+                Toast.makeText(this, "No map application available", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -843,34 +728,19 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         watchdogHandler.post(watchdogRunnable);
-        if (!DvrService.isRecording()) {
-            updateDvrUi(false);
-        }
+        gpsPollHandler.post(gpsPollRunnable);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         watchdogHandler.removeCallbacks(watchdogRunnable);
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-
-        if (DvrService.isRecording()) {
-            FileLogger.log(TAG, "App minimized / inactive: auto-stopping DVR cleanly");
-            DvrService.stop(this);
-            runOnUiThread(() -> Toast.makeText(this, "DVR Auto-saved (App minimized)", Toast.LENGTH_SHORT).show());
-        }
+        gpsPollHandler.removeCallbacks(gpsPollRunnable);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (DvrService.isRecording()) {
-            DvrService.stop(this);
-        }
         try {
             unregisterReceiver(usbReceiver);
         } catch (Exception ignored) {}

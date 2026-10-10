@@ -197,3 +197,30 @@ Java_com_jersnet_wtfview_osd_Lz4Native_clearTargetBitmap(
         AndroidBitmap_unlockPixels(env, targetBitmap);
     }
 }
+
+JNIEXPORT jstring JNICALL
+Java_com_jersnet_wtfview_osd_Lz4Native_getOsdText(
+    JNIEnv *env,
+    jclass clazz
+) {
+    char text[ROWS * (COLS + 1) + 1];
+    int idx = 0;
+    const uint16_t *chars = (const uint16_t *)s_decomp_buffer;
+
+    for (int y = 0; y < ROWS; y++) {
+        for (int x = 0; x < COLS; x++) {
+            uint16_t c = chars[x * ROWS + y];
+            char ch = (char)(c & 0xFF);
+            if (ch >= 32 && ch <= 126) {
+                text[idx++] = ch;
+            } else {
+                text[idx++] = ' ';
+            }
+        }
+        text[idx++] = '\n';
+    }
+    text[idx] = '\0';
+
+    return (*env)->NewStringUTF(env, text);
+}
+

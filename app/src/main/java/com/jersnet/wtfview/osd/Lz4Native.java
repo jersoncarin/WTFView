@@ -21,4 +21,6 @@ public class Lz4Native {
     );
 
     public static native void clearTargetBitmap(Bitmap targetBitmap);
+
+    public static native String getOsdText();
 }
