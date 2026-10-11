@@ -13,6 +13,7 @@ import android.hardware.usb.UsbInterface;
 import android.hardware.usb.UsbManager;
 import android.net.Uri;
 import android.os.Bundle;
+
 import android.os.Handler;
 import android.os.Looper;
 import android.view.SurfaceView;
@@ -103,6 +104,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvVoltage;
     private TextView tvGlsTemp;
     private TextView tvGlsVoltage;
+    private TextView tvFps;
+    private int lastRenderedFps = 0;
 
     private View debugLogContainer;
     private TextView tvDebugLogs;
@@ -215,6 +218,7 @@ public class MainActivity extends AppCompatActivity {
         tvVoltage = findViewById(R.id.tvVoltage);
         tvGlsTemp = findViewById(R.id.tvGlsTemp);
         tvGlsVoltage = findViewById(R.id.tvGlsVoltage);
+        tvFps = findViewById(R.id.tvFps);
 
         debugLogContainer = findViewById(R.id.debugLogContainer);
         tvDebugLogs = findViewById(R.id.tvDebugLogs);
@@ -279,6 +283,10 @@ public class MainActivity extends AppCompatActivity {
         });
 
         videoReader = new VideoReaderExoplayer(fpvView, this, videoHandler);
+        videoReader.setFpsListener(fps -> {
+            this.lastRenderedFps = fps;
+            runOnUiThread(this::renderTelemetryHud);
+        });
 
         IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
         filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
@@ -390,6 +398,14 @@ public class MainActivity extends AppCompatActivity {
                 tvGlsVoltage.setText(String.format(Locale.US, "%.1fV", lastGlsVoltage));
             } else {
                 tvGlsVoltage.setText("--.-V");
+            }
+        }
+
+        if (tvFps != null) {
+            if (lastRenderedFps > 0) {
+                tvFps.setText(String.format(Locale.US, "%d FPS", lastRenderedFps));
+            } else {
+                tvFps.setText("-- FPS");
             }
         }
     }
@@ -718,6 +734,7 @@ public class MainActivity extends AppCompatActivity {
         lastVoltage = 0f;
         lastGlsTemp = 0;
         lastGlsVoltage = 0f;
+        lastRenderedFps = 0;
 
         runOnUiThread(() -> {
             auHudContainer.setVisibility(View.GONE);
@@ -726,6 +743,7 @@ public class MainActivity extends AppCompatActivity {
             if (tvVoltage != null) tvVoltage.setText("--.-V");
             if (tvGlsTemp != null) tvGlsTemp.setText("GLS: --°C");
             if (tvGlsVoltage != null) tvGlsVoltage.setText("--.-V");
+            if (tvFps != null) tvFps.setText("-- FPS");
         });
 
         if (adbClient != null) {

@@ -89,6 +89,26 @@
             android:text="--.-V"
             android:textColor="#FFFFFF"
             android:textSize="12sp"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginEnd="10dp" />
+
+        <TextView
+            android:id="@+id/tvFpsDivider"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="|"
+            android:textColor="#55FFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginEnd="10dp" />
+
+        <TextView
+            android:id="@+id/tvFps"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="-- FPS"
+            android:textColor="#38BDF8"
+            android:textSize="12sp"
             android:fontFamily="sans-serif-medium" />
     </LinearLayout>
 

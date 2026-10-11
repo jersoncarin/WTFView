@@ -6,7 +6,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
-import android.view.Surface;
 import android.view.SurfaceView;
 
 import androidx.constraintlayout.widget.ConstraintLayout;
@@ -36,10 +35,35 @@ public class VideoReaderExoplayer {
     private UsbMaskConnection mUsbMaskConnection;
     private final Context context;
 
+    public interface FpsListener {
+        void onFpsCalculated(int fps);
+    }
+
+    private FpsListener fpsListener;
+    private int frameCount = 0;
+    private long lastFpsCalcTimeMs = 0;
+    private long lastFrameRenderTimeMs = 0;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable fpsTimeoutRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (System.currentTimeMillis() - lastFrameRenderTimeMs > 1500) {
+                if (fpsListener != null) {
+                    fpsListener.onFpsCalculated(0);
+                }
+            }
+            mainHandler.postDelayed(this, 1000);
+        }
+    };
+
     public VideoReaderExoplayer(SurfaceView videoSurface, Context c, Handler v) {
         this.surfaceView = videoSurface;
         this.context = c;
         this.videoReaderEventListener = v;
+    }
+
+    public void setFpsListener(FpsListener listener) {
+        this.fpsListener = listener;
     }
 
     public void setUsbMaskConnection(UsbMaskConnection connection) {
@@ -48,7 +72,6 @@ public class VideoReaderExoplayer {
     }
 
     public void start() {
-
         DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(32, 100, 0, 0)
                 .setPrioritizeTimeOverSizeThresholds(true)
@@ -62,6 +85,27 @@ public class VideoReaderExoplayer {
         mPlayer.setVideoSurfaceView(surfaceView);
         mPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT);
         mPlayer.setWakeMode(C.WAKE_MODE_LOCAL);
+
+        mPlayer.setVideoFrameMetadataListener((presentationTimeUs, releaseTimeNs, format, mediaFormat) -> {
+            long now = System.currentTimeMillis();
+            lastFrameRenderTimeMs = now;
+            frameCount++;
+            if (now - lastFpsCalcTimeMs >= 1000) {
+                int fps = (int) Math.round((frameCount * 1000.0) / (now - lastFpsCalcTimeMs));
+                frameCount = 0;
+                lastFpsCalcTimeMs = now;
+                if (fpsListener != null) {
+                    mainHandler.post(() -> {
+                        if (fpsListener != null) {
+                            fpsListener.onFpsCalculated(fps);
+                        }
+                    });
+                }
+            }
+        });
+
+        mainHandler.removeCallbacks(fpsTimeoutRunnable);
+        mainHandler.postDelayed(fpsTimeoutRunnable, 1000);
 
         DataSpec dataSpec = new DataSpec(Uri.EMPTY, 0, C.LENGTH_UNSET);
 
@@ -119,6 +163,10 @@ public class VideoReaderExoplayer {
     }
 
     public void restart() {
+        mainHandler.removeCallbacks(fpsTimeoutRunnable);
+        if (fpsListener != null) {
+            fpsListener.onFpsCalculated(0);
+        }
         if (mPlayer != null) {
             mPlayer.release();
         }
@@ -129,6 +177,10 @@ public class VideoReaderExoplayer {
     }
 
     public void stop() {
+        mainHandler.removeCallbacks(fpsTimeoutRunnable);
+        if (fpsListener != null) {
+            fpsListener.onFpsCalculated(0);
+        }
         if (mPlayer != null) {
             mPlayer.release();
             mPlayer = null;
